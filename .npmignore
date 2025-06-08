@@ -1,0 +1,57 @@
+# Source files (only include built files)
+src/
+tests/
+test/
+__tests__/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Development files
+.gitignore
+.eslintrc*
+.prettierrc*
+tsconfig.json
+vite.config.ts
+rollup.config.js
+webpack.config.js
+
+# Documentation that shouldn't be in npm package
+docs/
+examples/
+demo/
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.travis.yml
+circle.yml
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+node_modules/
