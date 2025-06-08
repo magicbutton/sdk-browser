@@ -56,6 +56,10 @@ class MagicButtonSDK {
     __publicField(this, "messageQueue", []);
     __publicField(this, "eventHandlers", /* @__PURE__ */ new Map());
     __publicField(this, "nodeRegistry", /* @__PURE__ */ new Map());
+    __publicField(this, "handshakeSessionId", null);
+    __publicField(this, "handshakeInProgress", false);
+    __publicField(this, "accessToken", null);
+    __publicField(this, "tokenExpiresAt", null);
     this.config = __spreadValues({
       namespace: "magicbutton-sdk",
       enableAutoCollection: true,
@@ -319,6 +323,215 @@ class MagicButtonSDK {
     this.on("graph:updated", callback);
   }
   // ============================================================================
+  // Handshake Methods
+  // ============================================================================
+  /**
+   * Initiate handshake with Magic Button extension
+   * This will cause the extension sidepanel to flash and display a 6-digit code
+   */
+  initiateHandshake(request) {
+    return __async(this, null, function* () {
+      this.log("🤝 Initiating handshake with request:", request);
+      if (!this.isExtensionAvailable) {
+        this.error("❌ Extension not available for handshake");
+        throw new Error("Magic Button extension not available");
+      }
+      if (this.handshakeInProgress) {
+        this.warn("⚠️ Handshake already in progress");
+        throw new Error("Handshake already in progress");
+      }
+      this.handshakeInProgress = true;
+      try {
+        this.log("📤 Sending handshake message to extension...");
+        const message = {
+          type: "INITIATE_HANDSHAKE",
+          data: {
+            siteName: request.siteName,
+            siteUrl: request.siteUrl,
+            permissions: request.permissions,
+            purpose: request.purpose,
+            timestamp: Date.now()
+          }
+        };
+        this.log("📋 Message payload:", message);
+        const response = yield this.sendMessage(message);
+        this.log("📥 Received handshake response:", response);
+        if (response == null ? void 0 : response.success) {
+          this.handshakeSessionId = response.sessionId;
+          this.log("✅ Handshake initiated successfully, session ID:", response.sessionId);
+          this.emit("handshake:initiated", response);
+          return response;
+        } else {
+          this.error("❌ Handshake initiation failed:", response == null ? void 0 : response.error);
+          throw new Error((response == null ? void 0 : response.error) || "Handshake initiation failed");
+        }
+      } catch (error) {
+        this.error("💥 Handshake error:", error);
+        throw error;
+      } finally {
+        this.handshakeInProgress = false;
+      }
+    });
+  }
+  /**
+   * Complete handshake by submitting the 6-digit code from extension
+   */
+  submitHandshakeCode(code) {
+    return __async(this, null, function* () {
+      if (!this.isExtensionAvailable) {
+        throw new Error("Magic Button extension not available");
+      }
+      if (!this.handshakeSessionId) {
+        throw new Error("No active handshake session. Call initiateHandshake() first.");
+      }
+      if (!/^\d{6}$/.test(code)) {
+        throw new Error("Code must be exactly 6 digits");
+      }
+      this.log("Submitting handshake code:", code);
+      try {
+        const response = yield this.sendMessage({
+          type: "SUBMIT_HANDSHAKE_CODE",
+          data: {
+            sessionId: this.handshakeSessionId,
+            code,
+            timestamp: Date.now()
+          }
+        });
+        if (response == null ? void 0 : response.success) {
+          this.accessToken = response.token;
+          this.tokenExpiresAt = response.expiresAt;
+          this.emit("handshake:completed", {
+            sessionId: this.handshakeSessionId,
+            token: response.token,
+            permissions: response.permissions,
+            expiresAt: response.expiresAt
+          });
+          this.log("Handshake completed successfully");
+          return true;
+        } else {
+          this.emit("handshake:failed", {
+            sessionId: this.handshakeSessionId,
+            error: response == null ? void 0 : response.error
+          });
+          throw new Error((response == null ? void 0 : response.error) || "Invalid handshake code");
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        this.emit("handshake:failed", {
+          sessionId: this.handshakeSessionId,
+          error: errorMessage
+        });
+        throw error;
+      }
+    });
+  }
+  /**
+   * Cancel active handshake session
+   */
+  cancelHandshake() {
+    return __async(this, null, function* () {
+      if (!this.handshakeSessionId) {
+        return;
+      }
+      if (this.isExtensionAvailable) {
+        yield this.sendMessage({
+          type: "CANCEL_HANDSHAKE",
+          data: {
+            sessionId: this.handshakeSessionId,
+            timestamp: Date.now()
+          }
+        });
+      }
+      this.emit("handshake:cancelled", { sessionId: this.handshakeSessionId });
+      this.handshakeSessionId = null;
+      this.handshakeInProgress = false;
+    });
+  }
+  /**
+   * Check if handshake is required for the current site
+   */
+  checkHandshakeStatus() {
+    return __async(this, null, function* () {
+      if (!this.isExtensionAvailable) {
+        return { required: false };
+      }
+      const response = yield this.sendMessage({
+        type: "CHECK_HANDSHAKE_STATUS",
+        data: {
+          siteUrl: window.location.href,
+          timestamp: Date.now()
+        }
+      });
+      return {
+        required: (response == null ? void 0 : response.required) || false,
+        sessionId: response == null ? void 0 : response.sessionId
+      };
+    });
+  }
+  /**
+   * Get current handshake session ID
+   */
+  getHandshakeSessionId() {
+    return this.handshakeSessionId;
+  }
+  /**
+   * Check if handshake is in progress
+   */
+  isHandshakeInProgress() {
+    return this.handshakeInProgress;
+  }
+  /**
+   * Open Magic Button sidepanel
+   */
+  openSidepanel() {
+    return __async(this, null, function* () {
+      if (!this.isExtensionAvailable) {
+        throw new Error("Magic Button extension not available");
+      }
+      try {
+        this.log("Opening sidepanel");
+        const response = yield this.sendMessage({
+          type: "OPEN_SIDEPANEL"
+        });
+        if (response == null ? void 0 : response.success) {
+          this.emit("sidepanel:opened", { timestamp: Date.now() });
+          return true;
+        } else {
+          throw new Error((response == null ? void 0 : response.error) || "Failed to open sidepanel");
+        }
+      } catch (error) {
+        this.error("Failed to open sidepanel:", error);
+        throw error;
+      }
+    });
+  }
+  /**
+   * Get current access token
+   */
+  getAccessToken() {
+    if (this.tokenExpiresAt && Date.now() > this.tokenExpiresAt) {
+      this.accessToken = null;
+      this.tokenExpiresAt = null;
+      this.emit("token:expired", { timestamp: Date.now() });
+      return null;
+    }
+    return this.accessToken;
+  }
+  /**
+   * Check if SDK is authenticated
+   */
+  isAuthenticated() {
+    return this.getAccessToken() !== null;
+  }
+  /**
+   * Clear authentication token
+   */
+  clearAuthentication() {
+    this.accessToken = null;
+    this.tokenExpiresAt = null;
+    this.emit("authentication:cleared", { timestamp: Date.now() });
+  }
+  // ============================================================================
   // Auto-collection Features
   // ============================================================================
   /**
@@ -384,7 +597,7 @@ class MagicButtonSDK {
     let scrollTimeout;
     window.addEventListener("scroll", () => {
       clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
+      scrollTimeout = window.setTimeout(() => {
         this.trackAction("scroll", {
           scrollY: window.scrollY,
           scrollX: window.scrollX,
@@ -404,10 +617,11 @@ class MagicButtonSDK {
       for (const [key, value] of formData.entries()) {
         if (!this.isSensitiveField(key)) ;
       }
+      const fieldCount = Array.from(formData.entries()).length;
       this.trackAction("form_submitted", {
         action: form.action,
         method: form.method,
-        fieldCount: formData.size,
+        fieldCount,
         hasFileUpload: Array.from(form.elements).some(
           (el) => el instanceof HTMLInputElement && el.type === "file"
         )
@@ -463,27 +677,41 @@ class MagicButtonSDK {
     return __async(this, null, function* () {
       return new Promise((resolve, reject) => {
         if (!this.isExtensionAvailable) {
+          this.warn("⚠️ Extension not available, queueing message:", message.type);
           this.messageQueue.push(message);
           resolve(null);
           return;
         }
         const messageId = this.generateMessageId();
+        this.log("📤 Sending message to extension:", { messageId, type: message.type });
         const timeout = setTimeout(() => {
-          reject(new Error("Message timeout"));
+          this.error("⏰ Message timeout for:", { messageId, type: message.type });
+          reject(new Error(`Message timeout for ${message.type}`));
         }, 5e3);
         const listener = (event) => {
           if (event.source === window && event.data.type === "MAGICBUTTON_SDK_RESPONSE" && event.data.messageId === messageId) {
+            this.log("📥 Received response for message:", { messageId, type: message.type });
             clearTimeout(timeout);
             window.removeEventListener("message", listener);
-            resolve(event.data.response);
+            if (event.data.error) {
+              this.error("❌ Extension returned error:", event.data.error);
+              reject(new Error(event.data.error));
+            } else {
+              resolve(event.data.response);
+            }
           }
         };
         window.addEventListener("message", listener);
-        window.postMessage({
+        const messageWithAuth = __spreadProps(__spreadValues({}, message), {
+          token: this.getAccessToken()
+        });
+        const postMessagePayload = {
           type: "MAGICBUTTON_SDK_MESSAGE",
           messageId,
-          payload: message
-        }, window.location.origin);
+          payload: messageWithAuth
+        };
+        this.log("📨 PostMessage payload:", postMessagePayload);
+        window.postMessage(postMessagePayload, window.location.origin);
       });
     });
   }
@@ -515,6 +743,17 @@ class MagicButtonSDK {
         break;
       case "CONSENT_REQUEST":
         this.handleConsentRequest(data);
+        break;
+      case "HANDSHAKE_CODE_GENERATED":
+        this.emit("handshake:code-generated", data);
+        break;
+      case "HANDSHAKE_EXPIRED":
+        this.emit("handshake:expired", data);
+        this.handshakeSessionId = null;
+        this.handshakeInProgress = false;
+        break;
+      case "HANDSHAKE_SIDEPANEL_FLASH":
+        this.emit("handshake:sidepanel-flash", data);
         break;
       default:
         this.log("Unknown message from extension:", data);

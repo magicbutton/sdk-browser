@@ -14,7 +14,7 @@
     
     // Load the main SDK
     var script = document.createElement('script');
-    script.src = 'https://cdn.magicbutton.cloud/sdk/v2/magicbutton-sdk.umd.js';
+    script.src = 'https://cdn.jsdelivr.net/gh/magicbutton/sdk-browser@latest/magicbutton-sdk.umd.js';
     script.async = true;
     script.onload = function() {
       console.log('[MagicButton] SDK loaded and ready');

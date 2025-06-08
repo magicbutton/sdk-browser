@@ -1,15 +1,13 @@
 {
-  "name": "@magicbutton/sdk-browser",
-  "version": "2.0.0",
-  "description": "Browser SDK for Magic Button - Intelligent automation and user state tracking",
+  "name": "@magicbutton/content-sdk",
+  "version": "2.0.46",
+  "description": "Content SDK for Magic Button Player V2",
   "main": "magicbutton-sdk.umd.js",
-  "module": "magicbutton-sdk.mjs",
+  "module": "magicbutton-sdk.es.js",
   "types": "magicbutton-sdk.d.ts",
   "files": [
     "magicbutton-sdk.umd.js",
-    "magicbutton-sdk.umd.js.map",
-    "magicbutton-sdk.mjs",
-    "magicbutton-sdk.mjs.map",
+    "magicbutton-sdk.es.js",
     "magicbutton-sdk.d.ts",
     "magicbutton-init.js",
     "README.md"
@@ -19,25 +17,12 @@
     "browser-extension",
     "sdk",
     "user-state",
-    "graph",
-    "browser",
-    "web-automation",
-    "chrome-extension"
+    "graph"
   ],
   "author": "Magic Button Team",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/magicbutton/sdk-browser"
-  },
-  "homepage": "https://github.com/magicbutton/sdk-browser#readme",
-  "bugs": {
-    "url": "https://github.com/magicbutton/sdk-browser/issues"
-  },
-  "engines": {
-    "node": ">=14.0.0"
-  },
-  "publishConfig": {
-    "access": "public"
+    "url": "https://github.com/magicbutton/apps"
   }
 }
